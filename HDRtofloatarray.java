@@ -32,59 +32,55 @@ public class HDRtofloatarray {
 	//The minimum value of the lum[][]
 	private float lummin;
 	
-	public int getWidth()
-	{
+	public int getWidth() {
 		return width;
 	}
-	public int getHeight()
-	{
+	
+	public int getHeight() {
 		return height;
 	}
-	public float[][] getLumArray()
-	{
+	
+	public float[][] getLumArray() {
 		return lum;
 	}
-	public float[][][] getPixelArray()
-	{
+	
+	public float[][][] getPixelArray() {
 		return pixels;
 	}
-	public float getLummax()
-	{
+	
+	public float getLummax() {
 		return lummax;
 	}
-	public float getLummin()
-	{
+	public float getLummin() {
 		return lummin;
 	}
-	public float getLummean()
-	{
+	
+	public float getLummean() {
 		return lummean;
 	}
 	//Construction method if the input is a file. 
-	public HDRtofloatarray(File file) throws IOException
-	{
-		if(file==null)
+	public HDRtofloatarray(File file) throws IOException{
+		if (file==null)
 			   throw new NullPointerException();
 		InputStream in=new BufferedInputStream(new FileInputStream(file));
-		try{
+		try {
 			read(in);
 		}
-		finally{
+		finally {
 			in.close();
 		}
 	}
 	
 	//Construction method if the input is a InputStream.
 	//Parse the HDR file by its format. HDR format encode can be seen in Radiance HDR(.pic,.hdr) file format
-	private void read(InputStream in) throws IOException
-	{
+	private void read(InputStream in) throws IOException {
 		//Parse HDR file's header line
 		//readLine(InputStream in) method will be introduced later.
 		
 		//The first line of the HDR file. If it is a HDR file, the first line should be "#?RADIANCE"
 		//If not, we will throw a IllegalArgumentException.
-		String isHDR=readLine(in);
-		if(!isHDR.equals("#?RADIANCE"))
+		String isHDR = readLine(in);
+		if (!isHDR.equals("#?RADIANCE"))
 			throw new IllegalArgumentException("Unrecognized format: "+isHDR);
 		
 		//Besides the first line, there are serval lines describe the different information of this HDR file.
@@ -94,52 +90,48 @@ public class HDRtofloatarray {
 		//The above information is not so important for us.
 		//The only important information for us is the Resolution which shows the size of the HDR image
 		//The resolution information's format is fixed. Usaually, it will be -Y 1024 +X 2048 something like this.
-		String inform=readLine(in);
-		while(!inform.equals(""))
-		{
-			inform=readLine(in);
+		String inform = readLine(in);
+		while(!inform.equals("")){
+			inform = readLine(in);
 		}
-		inform=readLine(in);
-		String[] tokens=inform.split(" ", 4);
-		if(tokens[0].charAt(1)=='Y')
-		{
-			width=Integer.parseInt(tokens[3]);
-			height=Integer.parseInt(tokens[1]);
+		inform = readLine(in);
+		String[] tokens = inform.split(" ", 4);
+		if(tokens[0].charAt(1) == 'Y'){
+			width = Integer.parseInt(tokens[3]);
+			height = Integer.parseInt(tokens[1]);
 		}
-		else
-		{
-			width=Integer.parseInt(tokens[1]);
-			height=Integer.parseInt(tokens[3]);
+		else{
+			width = Integer.parseInt(tokens[1]);
+			height = Integer.parseInt(tokens[3]);
 		}
-		if(width<=0)
+		if(width <= 0)
 			throw new IllegalArgumentException("Width must be positive");
-		if(height<=0)
+		if(height <= 0)
 			throw new IllegalArgumentException("Height must be positive");
 		
 		//In the above, the basic information has been collected. Now, we will deal with the pixel data.
 		//According to the HDR format document, each pixel is stored as 4 bytes, one bytes mantissa for each r,g,b and a shared one byte exponent.
 		//The pixel data may be stored uncompressed or using a straightforward run length encoding scheme.
 		
-		DataInput din=new DataInputStream(in);
-		buffers=new int[height][width][4]; 
+		DataInput din = new DataInputStream(in);
+		buffers = new int[height][width][4]; 
 		
 		
 		//We read the information row by row. In each row, the first four bytes store the column number information.
 		//The first and second bytes store "2". And the third byte stores the higher 8 bits of col num, the fourth byte stores the lower 8 bits of col num.
 		//After these four bytes, these are the real pixel data.
-		for(int i=0;i<height;i++)
-		{
+		for (int i = 0; i < height; i++) {
 			//The following code patch is checking whether the hdr file is compressed by run length encode(RLE).
 			//For every line of the data part, the first and second byte should be 2(DEC).
 			//The third*2^8+the fourth should equals to the width. They combined the width information.
 			//For every line, we need check this kind of informatioin. And the starting four nums of every line is the same
-			int a=din.readUnsignedByte();
-			int b=din.readUnsignedByte();
-			int c=din.readUnsignedByte();
-			int d=din.readUnsignedByte();
-			if(a!=2||b!=2)
+			int a = din.readUnsignedByte();
+			int b = din.readUnsignedByte();
+			int c = din.readUnsignedByte();
+			int d = din.readUnsignedByte();
+			if (a!=2 || b!=2)
 				throw new IllegalArgumentException("This hdr file is not made by RLE run length encoded ");
-			if(((c<<8)+d)!=width)
+			if (((c<<8)+d) != width)
 				throw new IllegalArgumentException("Wrong width information");
 			
 			//This inner loop is for the four channels. The way they compressed the data is in this way:
@@ -148,26 +140,20 @@ public class HDRtofloatarray {
 			//First data shows the numbers of duplicates(which should minus 128), and the following data is the duplicate one.
 			//If there is no duplicate, they will store the information in order. 
 			//And the first data is the number of how many induplicate items, and the following data stream is their associated data.
-			for(int j=0;j<4;j++) //This loop controls the four channel. R,G,B and Exp.
-			{
-				for(int w=0;w<width;) //This w controls the Wth col to readin.
-				{
+			for (int j = 0; j < 4; j++) { //This loop controls the four channel. R,G,B and Exp.
+				for (int w = 0; w < width;) {//This w controls the Wth col to readin.
 					int num=din.readUnsignedByte();
-					if(num>128)  //This means the following one data is duplicate item. And 
-					{
-						int duplicate=din.readUnsignedByte();
-						num-=128;
-						while(num>0)
-						{
-							buffers[i][w++][j]=duplicate;
+					if (num > 128) {//This means the following one data is duplicate item. And 
+						int duplicate = din.readUnsignedByte();
+						num -= 128;
+						while (num > 0)	{
+							buffers[i][w++][j] = duplicate;
 							num--;
 						}
 					}
-					else   //This situation is the no duplicate case.
-					{
-						while(num>0)
-						{
-							buffers[i][w++][j]=din.readUnsignedByte();
+					else {  //This situation is the no duplicate case.
+						while (num > 0) {
+							buffers[i][w++][j] = din.readUnsignedByte();
 							num--;
 						}
 					}
@@ -199,66 +185,63 @@ public class HDRtofloatarray {
 		 *By the way, we need generate the luminance of each pixel. By using the expressing:
 		 *Y=0.299*R+0.587*G+0.114*B;
 		 */
-		 pixels=new float[height][width][3];
-		 lum=new float[height][width];
-		 float lmax=0.0F;     //This float value is storing the max value of FP32 (RGB) data.
-		 for(int i=0;i<height;i++)
-		 {
-			 for(int j=0;j<width;j++)
-			 {
-				 int exp=buffers[i][j][3];
-				 if(exp==0)
-				 {
-					 pixels[i][j][0]=0.0F;
-					 pixels[i][j][1]=0.0F;
-					 pixels[i][j][2]=0.0F;
-					 lum[i][j]=0.0F;
+		 pixels = new float[height][width][3];
+		 lum = new float[height][width];
+		 float lmax = 0.0F;     //This float value is storing the max value of FP32 (RGB) data.
+		 for (int i = 0; i < height; i++) {
+			 for (int j = 0; j < width; j++) {
+				 int exp = buffers[i][j][3];
+				 if(exp == 0) {
+					 pixels[i][j][0] = 0.0F;
+					 pixels[i][j][1] = 0.0F;
+					 pixels[i][j][2] = 0.0F;
+					 lum[i][j] = 0.0F;
 				 }
-				 else
-				 {
-					 float exppart=(float) Math.pow(2, exp-128-8);
-					 pixels[i][j][0]=buffers[i][j][0]*exppart;
-					 pixels[i][j][1]=buffers[i][j][1]*exppart;
-					 pixels[i][j][2]=buffers[i][j][2]*exppart;
-					 lum[i][j]=(float) (0.299*pixels[i][j][0]+0.587*pixels[i][j][1]+0.114*pixels[i][j][2]);
-					 if(lum[i][j]>lmax)
-						 lmax=lum[i][j];
+				 else {
+					 float exppart = (float) Math.pow(2, exp-128-8);
+					 pixels[i][j][0] = buffers[i][j][0]*exppart;
+					 pixels[i][j][1] = buffers[i][j][1]*exppart;
+					 pixels[i][j][2] = buffers[i][j][2]*exppart;
+					 lum[i][j] = (float) (0.299*pixels[i][j][0]+0.587*pixels[i][j][1]+0.114*pixels[i][j][2]);
+					 if (lum[i][j] > lmax) {
+						 lmax = lum[i][j];
+					 }
 				 }
 			 }
 		 }
 		 
 		 //The next step is normalize to 1; In the above loop, we already find the max value of the FP32(RGB) data.
-		 lummax=0.0F;
-		 lummin=1.0F;
-		 float lumsum=0.0F;
-		 for(int i=0;i<height;i++)
-		 {
-			 for(int j=0;j<width;j++)
-			 {
-				 lum[i][j]/=lmax;
-				 if(lum[i][j]>lummax)
+		 lummax = 0.0F;
+		 lummin = 1.0F;
+		 float lumsum = 0.0F;
+		 for (int i = 0; i < height; i++) {
+			 for (int j = 0; j < width; j++) {
+				 lum[i][j] /= lmax;
+				 if (lum[i][j] > lummax) {
 					 lummax=lum[i][j];
-				 if(lum[i][j]<lummin)
+				 }
+				 if (lum[i][j] < lummin) {
 					 lummin=lum[i][j];
-				 lumsum+=lum[i][j];
+				 }
+				 lumsum += lum[i][j];
 			 }
 		 }
-		 lummean=lumsum/(height*width);
+		 lummean = lumsum / (height * width);
 	}
 
 	private String readLine(InputStream in) throws IOException{
-		ByteArrayOutputStream bout=new ByteArrayOutputStream();
-		for(int i=0;;i++)
-		{
-			int b=in.read();
-			if(b=='\n'||b==-1)
+		ByteArrayOutputStream bout = new ByteArrayOutputStream();
+		for (int i = 0; ; i++) {
+			int b = in.read();
+			if (b == '\n' || b == -1) {
 				break;
-			else if(i==100)
+			} else if (i == 100) {
 				throw new IllegalArgumentException("Line too long");
-			else
+			} else {
 				bout.write(b);
+			}
 		}
-		return new String(bout.toByteArray(),"US-ASCII");
+		return new String(bout.toByteArray(), "US-ASCII");
 	}
 	
 }
